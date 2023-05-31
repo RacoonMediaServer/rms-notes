@@ -2,9 +2,11 @@ package main
 
 import (
 	"fmt"
+	"github.com/RacoonMediaServer/rms-notes/internal/config"
+	"github.com/RacoonMediaServer/rms-notes/internal/db"
+	notesService "github.com/RacoonMediaServer/rms-notes/internal/service"
+	rms_notes "github.com/RacoonMediaServer/rms-packages/pkg/service/rms-notes"
 	"github.com/RacoonMediaServer/rms-packages/pkg/service/servicemgr"
-	"github.com/RacoonMediaServer/rms-template/internal/config"
-	"github.com/RacoonMediaServer/rms-template/internal/db"
 	"github.com/urfave/cli/v2"
 	"go-micro.dev/v4"
 	"go-micro.dev/v4/logger"
@@ -12,7 +14,7 @@ import (
 
 var Version = "v0.0.0"
 
-const serviceName = "rms-template"
+const serviceName = "rms-notes"
 
 func main() {
 	logger.Infof("%s %s", serviceName, Version)
@@ -50,15 +52,20 @@ func main() {
 
 	_ = servicemgr.NewServiceFactory(service)
 
-	_, err := db.Connect(config.Config().Database)
+	database, err := db.Connect(config.Config().Database)
 	if err != nil {
 		logger.Fatalf("Connect to database failed: %s", err)
 	}
 
+	ns, err := notesService.New(database)
+	if err != nil {
+		logger.Fatalf("Create service failed: %s", err)
+	}
+
 	// регистрируем хендлеры
-	//if err := rms_bot.RegisterRmsBotHandler(service.Server(), bot); err != nil {
-	//	logger.Fatalf("Register service failed: %s", err)
-	//}
+	if err := rms_notes.RegisterRmsNotesHandler(service.Server(), ns); err != nil {
+		logger.Fatalf("Register service failed: %s", err)
+	}
 
 	if err := service.Run(); err != nil {
 		logger.Fatalf("Run service failed: %s", err)

@@ -1,2 +1,2 @@
-# rms-template
-Template repository for microservices
+# rms-notes
+Management of Obsidian notes

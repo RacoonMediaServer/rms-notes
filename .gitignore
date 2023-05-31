@@ -16,3 +16,6 @@
 
 # GoLand projects
 .idea
+
+# Test database
+notes.db

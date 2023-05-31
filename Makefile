@@ -1,4 +1,4 @@
-PROJECT_NAME=rms-template
+PROJECT_NAME=rms-notes
 BINARY_NAME=${PROJECT_NAME}.out
 SOURCE_MAIN=${PROJECT_NAME}.go
 LDFLAGS="-X main.Version=`git tag --sort=-version:refname | head -n 1`"

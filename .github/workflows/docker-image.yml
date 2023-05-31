@@ -16,7 +16,7 @@ jobs:
       - uses: mr-smithers-excellent/docker-build-push@v5
         name: Build & push Docker image
         with:
-          image: racoonmediaserver/template
+          image: racoonmediaserver/notes
           registry: docker.io
           tags: ${{ github.ref_name }}, latest
           username: ${{ secrets.DOCKER_USERNAME }}
