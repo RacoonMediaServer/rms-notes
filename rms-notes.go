@@ -57,7 +57,7 @@ func main() {
 		logger.Fatalf("Connect to database failed: %s", err)
 	}
 
-	ns, err := notesService.New(database)
+	ns, err := notesService.New(database, service)
 	if err != nil {
 		logger.Fatalf("Create service failed: %s", err)
 	}

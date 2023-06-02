@@ -2,53 +2,99 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"github.com/RacoonMediaServer/rms-notes/internal/obsidian"
+	"github.com/RacoonMediaServer/rms-packages/pkg/pubsub"
 	rms_notes "github.com/RacoonMediaServer/rms-packages/pkg/service/rms-notes"
+	"github.com/RacoonMediaServer/rms-packages/pkg/service/servicemgr"
+	"go-micro.dev/v4"
+	"go-micro.dev/v4/logger"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"time"
 )
 
 type Notes struct {
-	db       Database
-	settings *rms_notes.NotesSettings
+	db  Database
+	o   *obsidian.Manager
+	pub micro.Event
 }
 
-func (n Notes) AddNote(ctx context.Context, request *rms_notes.AddNoteRequest, empty *emptypb.Empty) error {
+func (n *Notes) AddNote(ctx context.Context, request *rms_notes.AddNoteRequest, empty *emptypb.Empty) error {
+	if err := n.o.NewNote(request.Title, request.Text); err != nil {
+		logger.Errorf("Create a new note failed: %s", err)
+		return err
+	}
+
+	logger.Infof("Note '%s' created", request.Title)
+	return nil
+}
+
+func (n *Notes) AddTask(ctx context.Context, request *rms_notes.AddTaskRequest, empty *emptypb.Empty) error {
+	t := obsidian.Task{Text: request.Text}
+	if request.DueDate != nil {
+		date, err := time.Parse(obsidian.DateFormat, *request.DueDate)
+		if err != nil {
+			err = fmt.Errorf("invalid date: %s", *request.DueDate)
+			logger.Warn(err)
+			return err
+		}
+		t.DueDate = &date
+	}
+	if err := n.o.AddTask(t); err != nil {
+		logger.Errorf("Add task failed: %s", err)
+		return err
+	}
+	return nil
+}
+
+func (n *Notes) SnoozeTask(ctx context.Context, request *rms_notes.SnoozeTaskRequest, empty *emptypb.Empty) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (n Notes) AddTask(ctx context.Context, request *rms_notes.AddTaskRequest, empty *emptypb.Empty) error {
+func (n *Notes) DoneTask(ctx context.Context, request *rms_notes.DoneTaskRequest, empty *emptypb.Empty) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (n Notes) SnoozeTask(ctx context.Context, request *rms_notes.SnoozeTaskRequest, empty *emptypb.Empty) error {
-	//TODO implement me
-	panic("implement me")
+func (n *Notes) GetSettings(ctx context.Context, empty *emptypb.Empty, settings *rms_notes.NotesSettings) error {
+	loaded, err := n.db.LoadSettings()
+	if err != nil {
+		err = fmt.Errorf("load settings failed: %w", err)
+		logger.Error(err)
+		return err
+	}
+
+	settings.Directory = loaded.Directory
+	settings.NotesDirectory = loaded.NotesDirectory
+	settings.TasksFile = loaded.TasksFile
+
+	return nil
 }
 
-func (n Notes) DoneTask(ctx context.Context, request *rms_notes.DoneTaskRequest, empty *emptypb.Empty) error {
-	//TODO implement me
-	panic("implement me")
+func (n *Notes) SetSettings(ctx context.Context, settings *rms_notes.NotesSettings, empty *emptypb.Empty) error {
+	if err := n.db.SaveSettings(settings); err != nil {
+		logger.Errorf("Save settings failed: %s", err)
+		return err
+	}
+
+	n.o.Stop()
+	n.o = obsidian.New(settings, n.pub)
+
+	return nil
 }
 
-func (n Notes) GetSettings(ctx context.Context, empty *emptypb.Empty, settings *rms_notes.NotesSettings) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (n Notes) SetSettings(ctx context.Context, settings *rms_notes.NotesSettings, empty *emptypb.Empty) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func New(db Database) (*Notes, error) {
+func New(db Database, s servicemgr.ClientFactory) (*Notes, error) {
 	settings, err := db.LoadSettings()
 	if err != nil {
 		return nil, err
 	}
 
+	pub := pubsub.NewPublisher(s)
+
 	return &Notes{
-		db:       db,
-		settings: settings,
+		db:  db,
+		o:   obsidian.New(settings, pub),
+		pub: pub,
 	}, nil
 }
