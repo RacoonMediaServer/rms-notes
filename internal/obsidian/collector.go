@@ -2,7 +2,6 @@ package obsidian
 
 import (
 	"bufio"
-	"fmt"
 	"go-micro.dev/v4/logger"
 	"io/fs"
 	"os"
@@ -52,7 +51,6 @@ func extractTasks(fileName string, selector taskSelector) ([]*Task, error) {
 	scan := bufio.NewScanner(f)
 	for scan.Scan() {
 		if t := ParseTask(scan.Text()); t != nil && selector(t) {
-			fmt.Print(t)
 			tasks = append(tasks, t)
 		}
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/RacoonMediaServer/rms-notes/internal/obsidian"
 	"github.com/RacoonMediaServer/rms-packages/pkg/pubsub"
+	rms_bot_client "github.com/RacoonMediaServer/rms-packages/pkg/service/rms-bot-client"
 	rms_notes "github.com/RacoonMediaServer/rms-packages/pkg/service/rms-notes"
 	"github.com/RacoonMediaServer/rms-packages/pkg/service/servicemgr"
 	"go-micro.dev/v4"
@@ -17,6 +18,7 @@ type Notes struct {
 	db  Database
 	o   *obsidian.Manager
 	pub micro.Event
+	bot rms_bot_client.RmsBotClientService
 }
 
 func (n *Notes) AddNote(ctx context.Context, request *rms_notes.AddNoteRequest, empty *emptypb.Empty) error {
@@ -79,7 +81,7 @@ func (n *Notes) SetSettings(ctx context.Context, settings *rms_notes.NotesSettin
 	}
 
 	n.o.Stop()
-	n.o = obsidian.New(settings, n.pub)
+	n.o = obsidian.New(settings, n.pub, n.bot)
 
 	return nil
 }
@@ -91,10 +93,13 @@ func New(db Database, s servicemgr.ClientFactory) (*Notes, error) {
 	}
 
 	pub := pubsub.NewPublisher(s)
+	f := servicemgr.NewServiceFactory(s)
+	bot := f.NewBotClient()
 
 	return &Notes{
 		db:  db,
-		o:   obsidian.New(settings, pub),
+		o:   obsidian.New(settings, pub, bot),
 		pub: pub,
+		bot: bot,
 	}, nil
 }

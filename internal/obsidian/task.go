@@ -88,7 +88,7 @@ func (t Task) String() string {
 	if t.DoneDate != nil {
 		result += " ✅ " + t.DoneDate.Format(DateFormat)
 	}
-	return result + "\n"
+	return result
 }
 
 func (t Task) Hash() string {

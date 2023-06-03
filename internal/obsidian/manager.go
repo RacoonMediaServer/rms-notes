@@ -5,11 +5,15 @@ import (
 	"context"
 	"fmt"
 	"github.com/RacoonMediaServer/rms-notes/internal/config"
+	rms_bot_client "github.com/RacoonMediaServer/rms-packages/pkg/service/rms-bot-client"
 	rms_notes "github.com/RacoonMediaServer/rms-packages/pkg/service/rms-notes"
+	"github.com/go-co-op/gocron"
 	"go-micro.dev/v4"
+	"go-micro.dev/v4/logger"
 	"os"
 	"path"
 	"sync"
+	"time"
 )
 
 const (
@@ -20,17 +24,28 @@ type Manager struct {
 	baseDir   string
 	notesDir  string
 	tasksFile string
-	pub       micro.Event
+
+	pub micro.Event
+	bot rms_bot_client.RmsBotClientService
 
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 
-	tasks []*Task
+	tasks      []*Task
+	check      chan struct{}
+	sched      *gocron.Scheduler
+	notifyTime string
 }
 
-func New(settings *rms_notes.NotesSettings, pub micro.Event) *Manager {
-	m := Manager{pub: pub}
+func New(settings *rms_notes.NotesSettings, pub micro.Event, bot rms_bot_client.RmsBotClientService) *Manager {
+	m := Manager{
+		pub:        pub,
+		check:      make(chan struct{}),
+		sched:      gocron.NewScheduler(time.Local),
+		notifyTime: fmt.Sprintf("%02d:00", settings.NotificationTime),
+		bot:        bot,
+	}
 	m.baseDir = path.Join(config.Config().DataDirectory, settings.Directory)
 	m.notesDir = path.Join(m.baseDir, settings.NotesDirectory)
 	m.tasksFile = path.Join(m.baseDir, settings.TasksFile)
@@ -39,9 +54,20 @@ func New(settings *rms_notes.NotesSettings, pub micro.Event) *Manager {
 	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done()
+
+		if err := m.collectTasks(); err != nil {
+			logger.Warnf("Extract tasks info from Obsidian folder failed: %s", err)
+		}
+		m.checkScheduledTasks()
+
 		m.observeFolder()
 	}()
 
+	_, _ = m.sched.Every(1).Day().At(m.notifyTime).Do(func() {
+		m.check <- struct{}{}
+	})
+
+	m.sched.StartAsync()
 	return &m
 }
 
@@ -94,7 +120,7 @@ func (m *Manager) AddTask(t Task) error {
 	}
 	defer f.Close()
 
-	content := t.String()
+	content := t.String() + "\n"
 
 	wr := bufio.NewWriter(f)
 	_, err = wr.Write([]byte(content))
@@ -105,6 +131,8 @@ func (m *Manager) AddTask(t Task) error {
 }
 
 func (m *Manager) Stop() {
+	m.sched.Stop()
 	m.cancel()
 	m.wg.Wait()
+	close(m.check)
 }

@@ -3,10 +3,13 @@ package obsidian
 import (
 	"context"
 	"fmt"
+	"github.com/RacoonMediaServer/rms-packages/pkg/communication"
 	"github.com/RacoonMediaServer/rms-packages/pkg/events"
 	"github.com/RacoonMediaServer/rms-packages/pkg/misc"
+	rms_bot_client "github.com/RacoonMediaServer/rms-packages/pkg/service/rms-bot-client"
 	"github.com/radovskyb/watcher"
 	"go-micro.dev/v4/logger"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"path/filepath"
 	"regexp"
 	"time"
@@ -54,6 +57,8 @@ func (m *Manager) processEvents(w *watcher.Watcher) {
 			if err := m.collectTasks(); err != nil {
 				logger.Warnf("Extract tasks info from Obsidian folder failed: %s", err)
 			}
+		case <-m.check:
+			m.checkScheduledTasks()
 		}
 	}
 }
@@ -78,4 +83,42 @@ func (m *Manager) panicMalfunction(text string, err error) {
 	}
 
 	panic(message)
+}
+
+func (m *Manager) checkScheduledTasks() {
+	logger.Infof("Check scheduled tasks")
+
+	now := time.Now()
+	now = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+	for _, t := range m.tasks {
+		if t.DueDate == nil || t.Done {
+			continue
+		}
+		if now.Compare(*t.DueDate) >= 0 {
+			logger.Infof("Task is expired: %s", t)
+
+			_, err := m.bot.SendMessage(context.Background(), &rms_bot_client.SendMessageRequest{Message: &communication.BotMessage{
+				Type:      communication.MessageType_Interaction,
+				Text:      formatTask(t),
+				Timestamp: timestamppb.Now(),
+				Buttons: []*communication.Button{
+					{
+						Title:   "Отложить",
+						Command: "/snooze",
+					},
+					{
+						Title:   "Выполнить",
+						Command: "/done",
+					},
+				},
+				KeyboardStyle: communication.KeyboardStyle_Message,
+				Attachment:    nil,
+				User:          0,
+			}})
+
+			if err != nil {
+				logger.Errorf("Send notification failed: %s", err)
+			}
+		}
+	}
 }
