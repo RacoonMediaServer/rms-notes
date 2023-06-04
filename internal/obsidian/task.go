@@ -145,3 +145,22 @@ func ParseTask(line string) *Task {
 	t.Text = strings.Trim(line, " ")
 	return t
 }
+
+func (t Task) NextDate() time.Time {
+	switch t.Recurrent {
+	case RepetitionNo:
+		return *t.DueDate
+	case RepetitionEveryDay:
+		return t.DueDate.Add(24 * time.Hour)
+	case RepetitionEveryWeek:
+		return t.DueDate.Add(24 * 7 * time.Hour)
+
+		// TODO: нормальный расчет следующей даты
+	case RepetitionEveryMonth:
+		return t.DueDate.Add(30 * 24 * time.Hour)
+	case RepetitionEveryYear:
+		return t.DueDate.Add(365 * 24 * time.Hour)
+	}
+
+	return time.Now()
+}

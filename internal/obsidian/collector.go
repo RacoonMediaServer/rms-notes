@@ -12,7 +12,11 @@ import (
 type taskSelector func(t *Task) bool
 
 func (m *Manager) collectTasks() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	m.tasks = nil
+	m.mapTaskToFile = make(map[string]string)
 	baseDir, err := filepath.EvalSymlinks(m.baseDir)
 	if err != nil {
 		return err
@@ -35,6 +39,9 @@ func (m *Manager) collectTasks() error {
 			logger.Warnf("Extract tasks from '%s' failed: %s", fileName, err)
 		}
 		m.tasks = append(m.tasks, tasks...)
+		for _, t := range tasks {
+			m.mapTaskToFile[t.Hash()] = fileName
+		}
 
 		return nil
 	})

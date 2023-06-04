@@ -32,10 +32,13 @@ type Manager struct {
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 
-	tasks      []*Task
 	check      chan struct{}
 	sched      *gocron.Scheduler
 	notifyTime string
+
+	mu            sync.RWMutex
+	tasks         []*Task
+	mapTaskToFile map[string]string
 }
 
 func New(settings *rms_notes.NotesSettings, pub micro.Event, bot rms_bot_client.RmsBotClientService) *Manager {
@@ -128,6 +131,80 @@ func (m *Manager) AddTask(t Task) error {
 		return err
 	}
 	return wr.Flush()
+}
+
+func (m *Manager) Done(id string) error {
+	m.mu.RLock()
+	file, ok := m.mapTaskToFile[id]
+	if !ok {
+		m.mu.RUnlock()
+		return fmt.Errorf("task not found: %s", id)
+	}
+	m.mu.RUnlock()
+
+	lines, err := loadFile(file)
+	if err != nil {
+		return err
+	}
+
+	now := time.Now()
+
+	for i, l := range lines {
+		if t := ParseTask(l); t != nil && t.Hash() == id {
+			t.Done = true
+			t.DoneDate = &now
+			lines[i] = t.String()
+			if t.Recurrent != RepetitionNo {
+				newLines := make([]string, 0, len(lines)+1)
+				next := t.NextDate()
+				t.Done = false
+				t.DoneDate = nil
+				t.DueDate = &next
+				newLines = append(newLines, lines[:i]...)
+				newLines = append(newLines, t.String())
+				newLines = append(newLines, lines[i:]...)
+				lines = newLines
+			}
+			break
+		}
+	}
+
+	err = saveFile(file, lines)
+	if err == nil {
+		err = m.collectTasks()
+	}
+
+	return err
+}
+
+func (m *Manager) Snooze(id string, date time.Time) error {
+	m.mu.RLock()
+	file, ok := m.mapTaskToFile[id]
+	if !ok {
+		m.mu.RUnlock()
+		return fmt.Errorf("task not found: %s", id)
+	}
+	m.mu.RUnlock()
+
+	lines, err := loadFile(file)
+	if err != nil {
+		return err
+	}
+
+	for i, l := range lines {
+		if t := ParseTask(l); t != nil && t.Hash() == id {
+			t.DueDate = &date
+			lines[i] = t.String()
+			break
+		}
+	}
+
+	err = saveFile(file, lines)
+	if err == nil {
+		err = m.collectTasks()
+	}
+
+	return err
 }
 
 func (m *Manager) Stop() {
