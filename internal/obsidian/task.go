@@ -151,15 +151,13 @@ func (t Task) NextDate() time.Time {
 	case RepetitionNo:
 		return *t.DueDate
 	case RepetitionEveryDay:
-		return t.DueDate.Add(24 * time.Hour)
+		return t.DueDate.AddDate(0, 0, 1)
 	case RepetitionEveryWeek:
-		return t.DueDate.Add(24 * 7 * time.Hour)
-
-		// TODO: нормальный расчет следующей даты
+		return t.DueDate.AddDate(0, 0, 7)
 	case RepetitionEveryMonth:
-		return t.DueDate.Add(30 * 24 * time.Hour)
+		return t.DueDate.AddDate(0, 1, 0)
 	case RepetitionEveryYear:
-		return t.DueDate.Add(365 * 24 * time.Hour)
+		return t.DueDate.AddDate(1, 0, 0)
 	}
 
 	return time.Now()
