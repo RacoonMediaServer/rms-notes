@@ -87,6 +87,8 @@ func (m *Manager) panicMalfunction(text string, err error) {
 
 func (m *Manager) checkScheduledTasks() {
 	logger.Infof("Check scheduled tasks")
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	now := time.Now()
 	now = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
