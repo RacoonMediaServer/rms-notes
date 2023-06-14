@@ -50,13 +50,29 @@ func (n *Notes) AddTask(ctx context.Context, request *rms_notes.AddTaskRequest, 
 }
 
 func (n *Notes) SnoozeTask(ctx context.Context, request *rms_notes.SnoozeTaskRequest, empty *emptypb.Empty) error {
-	//TODO implement me
-	panic("implement me")
+	date := time.Now().AddDate(0, 0, 1)
+	var err error
+	if request.DueDate != nil {
+		date, err = time.Parse(obsidian.DateFormat, *request.DueDate)
+		if err != nil {
+			return fmt.Errorf("invalid date format: %s", err)
+		}
+	}
+	if err = n.o.Snooze(request.Id, date); err != nil {
+		logger.Errorf("Cannot snooze task %s to %s: %s", request.Id, date, err)
+		return err
+	}
+
+	return nil
 }
 
 func (n *Notes) DoneTask(ctx context.Context, request *rms_notes.DoneTaskRequest, empty *emptypb.Empty) error {
-	//TODO implement me
-	panic("implement me")
+	if err := n.o.Done(request.Id); err != nil {
+		logger.Errorf("Done task %s failed: %s", request.Id, err)
+		return err
+	}
+
+	return nil
 }
 
 func (n *Notes) GetSettings(ctx context.Context, empty *emptypb.Empty, settings *rms_notes.NotesSettings) error {
@@ -70,6 +86,7 @@ func (n *Notes) GetSettings(ctx context.Context, empty *emptypb.Empty, settings 
 	settings.Directory = loaded.Directory
 	settings.NotesDirectory = loaded.NotesDirectory
 	settings.TasksFile = loaded.TasksFile
+	settings.NotificationTime = loaded.NotificationTime
 
 	return nil
 }

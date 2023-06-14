@@ -4,8 +4,14 @@ import "github.com/RacoonMediaServer/rms-packages/pkg/configuration"
 
 // Configuration represents entire service configuration
 type Configuration struct {
-	Database      string
-	DataDirectory string
+	Database string
+	WebDAV   WebDAV
+}
+
+type WebDAV struct {
+	Root     string
+	User     string
+	Password string
 }
 
 var config Configuration

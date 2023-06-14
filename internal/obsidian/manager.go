@@ -1,16 +1,17 @@
 package obsidian
 
 import (
-	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/RacoonMediaServer/rms-notes/internal/config"
+	"github.com/RacoonMediaServer/rms-notes/internal/nextcloud"
 	rms_bot_client "github.com/RacoonMediaServer/rms-packages/pkg/service/rms-bot-client"
 	rms_notes "github.com/RacoonMediaServer/rms-packages/pkg/service/rms-notes"
 	"github.com/go-co-op/gocron"
+	"github.com/studio-b12/gowebdav"
 	"go-micro.dev/v4"
 	"go-micro.dev/v4/logger"
-	"os"
 	"path"
 	"sync"
 	"time"
@@ -21,9 +22,12 @@ const (
 )
 
 type Manager struct {
+	l         logger.Logger
 	baseDir   string
 	notesDir  string
 	tasksFile string
+	nc        *nextcloud.Client
+	w         *nextcloud.Watcher
 
 	pub micro.Event
 	bot rms_bot_client.RmsBotClientService
@@ -35,6 +39,7 @@ type Manager struct {
 	check      chan struct{}
 	sched      *gocron.Scheduler
 	notifyTime string
+	initiated  bool
 
 	mu            sync.RWMutex
 	tasks         []*Task
@@ -43,26 +48,24 @@ type Manager struct {
 
 func New(settings *rms_notes.NotesSettings, pub micro.Event, bot rms_bot_client.RmsBotClientService) *Manager {
 	m := Manager{
+		l:          logger.Fields(map[string]interface{}{"from": "obsidian"}),
+		baseDir:    settings.Directory,
+		notesDir:   path.Join(settings.Directory, settings.NotesDirectory),
+		tasksFile:  path.Join(settings.Directory, settings.TasksFile),
+		nc:         nextcloud.NewClient(config.Config().WebDAV),
 		pub:        pub,
 		check:      make(chan struct{}),
 		sched:      gocron.NewScheduler(time.Local),
 		notifyTime: fmt.Sprintf("%02d:00", settings.NotificationTime),
 		bot:        bot,
 	}
-	m.baseDir = path.Join(config.Config().DataDirectory, settings.Directory)
-	m.notesDir = path.Join(m.baseDir, settings.NotesDirectory)
-	m.tasksFile = path.Join(m.baseDir, settings.TasksFile)
 
 	m.ctx, m.cancel = context.WithCancel(context.Background())
+	m.w = m.nc.AddWatcher(m.baseDir)
+
 	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done()
-
-		if err := m.collectTasks(); err != nil {
-			logger.Warnf("Extract tasks info from Obsidian folder failed: %s", err)
-		}
-		m.checkScheduledTasks()
-
 		m.observeFolder()
 	}()
 
@@ -74,63 +77,21 @@ func New(settings *rms_notes.NotesSettings, pub micro.Event, bot rms_bot_client.
 	return &m
 }
 
-func (m *Manager) checkLayout() error {
-	st, err := os.Stat(m.baseDir)
-	if err != nil || !st.IsDir() {
-		return fmt.Errorf("obsidian directory does not exist")
-	}
-	return nil
-}
-
-func (m *Manager) checkNotesLayout() error {
-	if err := m.checkLayout(); err != nil {
-		return err
-	}
-
-	st, err := os.Stat(m.notesDir)
-	if os.IsNotExist(err) {
-		if err = os.MkdirAll(m.notesDir, 0744); err != nil {
-			return fmt.Errorf("create notes directory failed: %w", err)
-		}
-	} else if !st.IsDir() {
-		return fmt.Errorf("notes directory must be a directory")
-	}
-
-	return nil
-}
-
 func (m *Manager) NewNote(title, content string) error {
-	if err := m.checkNotesLayout(); err != nil {
-		return err
-	}
-
 	fileName := path.Join(m.notesDir, escapeFileName(title)+".md")
-	_, err := os.Stat(fileName)
-	if !os.IsNotExist(err) {
-		return fmt.Errorf("note '%s' already exists", title)
-	}
-	return os.WriteFile(fileName, []byte(content), 0644)
+	return m.nc.Upload(fileName, []byte(content))
 }
 
 func (m *Manager) AddTask(t Task) error {
-	if err := m.checkLayout(); err != nil {
-		return err
-	}
-
-	f, err := os.OpenFile(m.tasksFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	tasksFileContent, err := m.nc.Download(m.tasksFile)
 	if err != nil {
-		return err
+		if !errors.Is(err, gowebdav.StatusError{Status: 404}) {
+			return err
+		}
 	}
-	defer f.Close()
 
-	content := t.String() + "\n"
-
-	wr := bufio.NewWriter(f)
-	_, err = wr.Write([]byte(content))
-	if err != nil {
-		return err
-	}
-	return wr.Flush()
+	content := string(tasksFileContent) + "\n" + t.String()
+	return m.nc.Upload(m.tasksFile, []byte(content))
 }
 
 func (m *Manager) Done(id string) error {
@@ -142,7 +103,7 @@ func (m *Manager) Done(id string) error {
 	}
 	m.mu.RUnlock()
 
-	lines, err := loadFile(file)
+	lines, err := m.loadFile(file)
 	if err != nil {
 		return err
 	}
@@ -169,12 +130,7 @@ func (m *Manager) Done(id string) error {
 		}
 	}
 
-	err = saveFile(file, lines)
-	if err == nil {
-		err = m.collectTasks()
-	}
-
-	return err
+	return m.saveFile(file, lines)
 }
 
 func (m *Manager) Snooze(id string, date time.Time) error {
@@ -186,7 +142,7 @@ func (m *Manager) Snooze(id string, date time.Time) error {
 	}
 	m.mu.RUnlock()
 
-	lines, err := loadFile(file)
+	lines, err := m.loadFile(file)
 	if err != nil {
 		return err
 	}
@@ -199,16 +155,12 @@ func (m *Manager) Snooze(id string, date time.Time) error {
 		}
 	}
 
-	err = saveFile(file, lines)
-	if err == nil {
-		err = m.collectTasks()
-	}
-
-	return err
+	return m.saveFile(file, lines)
 }
 
 func (m *Manager) Stop() {
 	m.sched.Stop()
+	m.w.Stop()
 	m.cancel()
 	m.wg.Wait()
 	close(m.check)

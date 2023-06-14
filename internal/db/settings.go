@@ -13,10 +13,10 @@ type settings struct {
 func (d *Database) LoadSettings() (*rms_notes.NotesSettings, error) {
 	var record settings
 	defaultSettings := settings{
-		ID:       0,
+		ID:       1,
 		Settings: config.DefaultSettings,
 	}
-	if err := d.conn.Model(&settings{}).FirstOrCreate(&record, &defaultSettings).Error; err != nil {
+	if err := d.conn.Where(settings{ID: 1}).Attrs(defaultSettings).FirstOrCreate(&record).Error; err != nil {
 		return nil, err
 	}
 	return &record.Settings, nil

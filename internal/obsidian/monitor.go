@@ -7,55 +7,34 @@ import (
 	"github.com/RacoonMediaServer/rms-packages/pkg/events"
 	"github.com/RacoonMediaServer/rms-packages/pkg/misc"
 	rms_bot_client "github.com/RacoonMediaServer/rms-packages/pkg/service/rms-bot-client"
-	"github.com/radovskyb/watcher"
 	"go-micro.dev/v4/logger"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"path/filepath"
-	"regexp"
 	"time"
 )
 
-const dirMonitoringInterval = 5 * time.Second
 const notificationTimeout = 20 * time.Second
 
 func (m *Manager) observeFolder() {
-	w := watcher.New()
-	w.SetMaxEvents(1)
-	w.FilterOps(watcher.Write, watcher.Create, watcher.Move, watcher.Rename, watcher.Remove)
-
-	r := regexp.MustCompile(`\.md$`)
-	w.AddFilterHook(watcher.RegexFilterHook(r, true))
-
-	baseDir, err := filepath.EvalSymlinks(m.baseDir)
-	if err != nil {
-		m.panicMalfunction("Observe obsidian folder failed", err)
-	}
-
-	if err = w.AddRecursive(baseDir); err != nil {
-		m.panicMalfunction("Observe obsidian folder failed", err)
-	}
-
 	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done()
-		defer w.Close()
-		m.processEvents(w)
+		m.processEvents()
 	}()
-
-	if err = w.Start(dirMonitoringInterval); err != nil {
-		m.panicMalfunction("Observe obsidian folder failed", err)
-	}
 }
 
-func (m *Manager) processEvents(w *watcher.Watcher) {
+func (m *Manager) processEvents() {
 	for {
 		select {
 		case <-m.ctx.Done():
 			return
-		case e := <-w.Event:
-			logger.Infof("[obsidian] %s", e)
+		case <-m.w.OnChanged():
+			logger.Infof("[obsidian] Something changed")
 			if err := m.collectTasks(); err != nil {
 				logger.Warnf("Extract tasks info from Obsidian folder failed: %s", err)
+			}
+			if !m.initiated {
+				m.initiated = true
+				m.checkScheduledTasks()
 			}
 		case <-m.check:
 			m.checkScheduledTasks()

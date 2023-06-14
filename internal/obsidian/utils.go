@@ -2,7 +2,7 @@ package obsidian
 
 import (
 	"bufio"
-	"os"
+	"bytes"
 	"strings"
 )
 
@@ -11,25 +11,14 @@ func escapeFileName(fn string) string {
 	return rpl.Replace(fn)
 }
 
-func isFileHidden(path string) bool {
-	dirs := strings.Split(path, string(os.PathSeparator))
-	for _, d := range dirs {
-		if strings.HasPrefix(d, ".") {
-			return true
-		}
-	}
-
-	return false
-}
-
-func loadFile(fileName string) ([]string, error) {
-	var lines []string
-	f, err := os.Open(fileName)
+func (m *Manager) loadFile(fileName string) ([]string, error) {
+	data, err := m.nc.Download(fileName)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
 
+	var lines []string
+	f := bytes.NewReader(data)
 	scan := bufio.NewScanner(f)
 	for scan.Scan() {
 		lines = append(lines, scan.Text())
@@ -38,19 +27,12 @@ func loadFile(fileName string) ([]string, error) {
 	return lines, scan.Err()
 }
 
-func saveFile(fileName string, lines []string) error {
-	f, err := os.OpenFile(fileName, os.O_WRONLY|os.O_TRUNC, 0655)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	wr := bufio.NewWriter(f)
-	for _, l := range lines {
-		if _, err = wr.WriteString(l + "\n"); err != nil {
-			return err
-		}
+func (m *Manager) saveFile(fileName string, lines []string) error {
+	var builder strings.Builder
+	for _, line := range lines {
+		builder.WriteString(line)
+		builder.WriteString("\n")
 	}
 
-	return wr.Flush()
+	return m.nc.Upload(fileName, []byte(builder.String()))
 }

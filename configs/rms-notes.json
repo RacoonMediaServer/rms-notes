@@ -1,4 +1,8 @@
 {
   "database": "notes.db",
-  "dataDirectory": "test-data"
+  "webdav": {
+    "root": "http://nc.rms.local/remote.php/dav",
+    "user": "admin",
+    "password": ""
+  }
 }

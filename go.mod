@@ -4,6 +4,8 @@ go 1.20
 
 require (
 	github.com/RacoonMediaServer/rms-packages v1.8.11
+	github.com/go-co-op/gocron v1.28.2
+	github.com/studio-b12/gowebdav v0.0.0-20230203202212-3282f94193f2
 	github.com/urfave/cli/v2 v2.3.0
 	go-micro.dev/v4 v4.9.0
 	google.golang.org/protobuf v1.28.1
@@ -22,7 +24,6 @@ require (
 	github.com/felixge/httpsnoop v1.0.1 // indirect
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/go-acme/lego/v4 v4.4.0 // indirect
-	github.com/go-co-op/gocron v1.28.2 // indirect
 	github.com/go-git/gcfg v1.5.0 // indirect
 	github.com/go-git/go-billy/v5 v5.3.1 // indirect
 	github.com/go-git/go-git/v5 v5.4.2 // indirect
@@ -37,7 +38,6 @@ require (
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/kevinburke/ssh_config v0.0.0-20201106050909-4977a11b4351 // indirect
-	github.com/kr/pretty v0.3.0 // indirect
 	github.com/mattn/go-sqlite3 v1.14.16 // indirect
 	github.com/miekg/dns v1.1.43 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
@@ -45,12 +45,10 @@ require (
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/radovskyb/watcher v1.0.7 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/russross/blackfriday/v2 v2.0.1 // indirect
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
-	github.com/stretchr/testify v1.8.2 // indirect
 	github.com/xanzy/ssh-agent v0.3.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	golang.org/x/crypto v0.6.0 // indirect
@@ -61,3 +59,5 @@ require (
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )
+
+replace github.com/studio-b12/gowebdav v0.0.0-20230203202212-3282f94193f2 => github.com/racoon-devel/gowebdav v0.0.1
