@@ -85,11 +85,11 @@ func (m *Manager) checkScheduledTasks() {
 				Buttons: []*communication.Button{
 					{
 						Title:   "Отложить",
-						Command: fmt.Sprintf("/snooze %s", t.Hash()),
+						Command: fmt.Sprintf("/tasks snooze %s", t.Hash()),
 					},
 					{
 						Title:   "Выполнить",
-						Command: fmt.Sprintf("/done %s", t.Hash()),
+						Command: fmt.Sprintf("/tasks done %s", t.Hash()),
 					},
 				},
 				KeyboardStyle: communication.KeyboardStyle_Message,
