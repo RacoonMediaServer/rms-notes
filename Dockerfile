@@ -1,9 +1,9 @@
 FROM golang as builder
 WORKDIR /src/service
 COPY . .
-RUN CGO_ENABLED=1 GOOS=linux go build -a -ldflags "-linkmode external -extldflags '-static' -X main.Version=`git tag --sort=-version:refname | head -n 1`" -o rms-notes rms-notes.go
+RUN CGO_ENABLED=1 GOOS=linux go build -a -ldflags "-X main.Version=`git tag --sort=-version:refname | head -n 1`" -o rms-notes rms-notes.go
 
-FROM alpine:latest
+FROM frolvlad/alpine-glibc
 RUN apk --no-cache add ca-certificates tzdata
 RUN mkdir /app
 WORKDIR /app
