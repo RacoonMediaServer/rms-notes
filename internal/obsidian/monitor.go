@@ -8,7 +8,6 @@ import (
 	"github.com/RacoonMediaServer/rms-packages/pkg/misc"
 	rms_bot_client "github.com/RacoonMediaServer/rms-packages/pkg/service/rms-bot-client"
 	"go-micro.dev/v4/logger"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"time"
 )
 
@@ -79,9 +78,8 @@ func (m *Manager) checkScheduledTasks() {
 			logger.Infof("Task is expired: %s", t)
 
 			_, err := m.bot.SendMessage(context.Background(), &rms_bot_client.SendMessageRequest{Message: &communication.BotMessage{
-				Type:      communication.MessageType_Interaction,
-				Text:      formatTask(t),
-				Timestamp: timestamppb.Now(),
+				Type: communication.MessageType_Interaction,
+				Text: formatTask(t),
 				Buttons: []*communication.Button{
 					{
 						Title:   "Отложить",

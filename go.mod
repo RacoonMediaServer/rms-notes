@@ -3,7 +3,7 @@ module github.com/RacoonMediaServer/rms-notes
 go 1.20
 
 require (
-	github.com/RacoonMediaServer/rms-packages v1.8.11
+	github.com/RacoonMediaServer/rms-packages v1.9.0
 	github.com/go-co-op/gocron v1.28.2
 	github.com/studio-b12/gowebdav v0.0.0-20230203202212-3282f94193f2
 	github.com/urfave/cli/v2 v2.3.0
