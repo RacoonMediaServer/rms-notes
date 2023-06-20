@@ -1,8 +1,8 @@
 package obsidian
 
 import (
-	"crypto/sha256"
 	"fmt"
+	"hash/fnv"
 	"regexp"
 	"strings"
 	"time"
@@ -93,7 +93,7 @@ func (t Task) String() string {
 
 func (t Task) Hash() string {
 	bytes := t.String()
-	h := sha256.New()
+	h := fnv.New32a()
 	h.Write([]byte(bytes))
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
