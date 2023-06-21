@@ -50,10 +50,10 @@ func (m *Manager) collectTasks() error {
 		if err != nil {
 			m.l.Logf(logger.WarnLevel, "Extract tasks from '%s' failed: %s", path, err)
 		}
-		tasks = append(tasks, fileTasks...)
-		for _, t := range tasks {
+		for _, t := range fileTasks {
 			mapTaskToFile[t.Hash()] = path
 		}
+		tasks = append(tasks, fileTasks...)
 		return nil
 	})
 
