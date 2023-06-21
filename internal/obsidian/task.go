@@ -1,8 +1,9 @@
 package obsidian
 
 import (
+	"crypto/sha1"
+	"encoding/base64"
 	"fmt"
-	"hash/fnv"
 	"regexp"
 	"strings"
 	"time"
@@ -93,9 +94,9 @@ func (t Task) String() string {
 
 func (t Task) Hash() string {
 	bytes := t.String()
-	h := fnv.New32a()
+	h := sha1.New()
 	h.Write([]byte(bytes))
-	return fmt.Sprintf("%x", h.Sum(nil))
+	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
 
 func ParseTask(line string) *Task {
