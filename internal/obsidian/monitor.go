@@ -69,7 +69,7 @@ func (m *Manager) checkScheduledTasks() {
 	defer m.mu.RUnlock()
 
 	now := time.Now()
-	now = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+	now = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	for _, t := range m.tasks {
 		if t.DueDate == nil || t.Done {
 			continue
