@@ -36,6 +36,9 @@ func (m *Manager) collectTasks() error {
 	mapTaskToFile := make(map[string]string)
 
 	err := m.nc.Walk(m.baseDir, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 		if filterEntry(path, info) {
 			if info.IsDir() {
 				return filepath.SkipDir
