@@ -10,6 +10,9 @@ import (
 	"github.com/urfave/cli/v2"
 	"go-micro.dev/v4"
 	"go-micro.dev/v4/logger"
+
+	// Plugins
+	_ "github.com/go-micro/plugins/v4/registry/etcd"
 )
 
 var Version = "v0.0.0"
