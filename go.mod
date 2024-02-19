@@ -3,15 +3,15 @@ module github.com/RacoonMediaServer/rms-notes
 go 1.20
 
 require (
-	github.com/RacoonMediaServer/rms-packages v1.9.0
+	github.com/RacoonMediaServer/rms-packages v1.11.10
 	github.com/go-co-op/gocron v1.28.2
 	github.com/go-micro/plugins/v4/registry/etcd v1.2.0
 	github.com/studio-b12/gowebdav v0.0.0-20230203202212-3282f94193f2
 	github.com/urfave/cli/v2 v2.3.0
 	go-micro.dev/v4 v4.9.0
 	google.golang.org/protobuf v1.28.1
-	gorm.io/driver/sqlite v1.5.1
-	gorm.io/gorm v1.25.0
+	gorm.io/driver/postgres v1.5.6
+	gorm.io/gorm v1.25.7-0.20240204074919-46816ad31dde
 )
 
 require (
@@ -38,11 +38,13 @@ require (
 	github.com/google/uuid v1.2.0 // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
+	github.com/jackc/pgx/v5 v5.4.3 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/kevinburke/ssh_config v0.0.0-20201106050909-4977a11b4351 // indirect
-	github.com/mattn/go-sqlite3 v1.14.16 // indirect
 	github.com/miekg/dns v1.1.43 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/hashstructure v1.1.0 // indirect
@@ -61,11 +63,11 @@ require (
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.17.0 // indirect
-	golang.org/x/crypto v0.6.0 // indirect
-	golang.org/x/net v0.6.0 // indirect
+	golang.org/x/crypto v0.14.0 // indirect
+	golang.org/x/net v0.10.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
-	golang.org/x/sys v0.5.0 // indirect
-	golang.org/x/text v0.7.0 // indirect
+	golang.org/x/sys v0.13.0 // indirect
+	golang.org/x/text v0.13.0 // indirect
 	google.golang.org/genproto v0.0.0-20210602131652-f16073e35f0c // indirect
 	google.golang.org/grpc v1.38.0 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect

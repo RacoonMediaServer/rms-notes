@@ -1,7 +1,8 @@
 package db
 
 import (
-	"gorm.io/driver/sqlite"
+	"github.com/RacoonMediaServer/rms-packages/pkg/configuration"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -10,12 +11,12 @@ type Database struct {
 	conn *gorm.DB
 }
 
-func Connect(path string) (*Database, error) {
-	db, err := gorm.Open(sqlite.Open(path))
+func Connect(dbConfig configuration.Database) (*Database, error) {
+	db, err := gorm.Open(postgres.Open(dbConfig.GetConnectionString()))
 	if err != nil {
 		return nil, err
 	}
-	if err = db.AutoMigrate(&settings{}); err != nil {
+	if err = db.AutoMigrate(&notesSettings{}); err != nil {
 		return nil, err
 	}
 	return &Database{conn: db}, nil

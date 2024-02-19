@@ -1,5 +1,14 @@
 {
-  "database": "notes.db",
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "user": "rms",
+    "password": "rms",
+    "database": "rms"
+  },
+  "debug": {
+    "verbose": false
+  },
   "webdav": {
     "root": "http://nc.rms.local/remote.php/dav",
     "user": "admin",

@@ -49,7 +49,9 @@ func main() {
 		}),
 	)
 
-	if useDebug {
+	cfg := config.Config()
+
+	if useDebug || cfg.Debug.Verbose {
 		_ = logger.Init(logger.WithLevel(logger.DebugLevel))
 	}
 
