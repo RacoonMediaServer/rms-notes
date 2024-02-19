@@ -57,7 +57,7 @@ func main() {
 
 	_ = servicemgr.NewServiceFactory(service)
 
-	database, err := db.Connect(config.Config().Database)
+	database, err := db.Connect(cfg.Database)
 	if err != nil {
 		logger.Fatalf("Connect to database failed: %s", err)
 	}

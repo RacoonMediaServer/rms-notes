@@ -12,7 +12,7 @@ func escapeFileName(fn string) string {
 }
 
 func (m *Manager) loadFile(fileName string) ([]string, error) {
-	data, err := m.nc.Download(fileName)
+	data, err := m.vault.Read(fileName)
 	if err != nil {
 		return nil, err
 	}
@@ -34,5 +34,5 @@ func (m *Manager) saveFile(fileName string, lines []string) error {
 		builder.WriteString("\n")
 	}
 
-	return m.nc.Upload(fileName, []byte(builder.String()))
+	return m.vault.Write(fileName, []byte(builder.String()))
 }

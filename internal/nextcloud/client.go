@@ -2,6 +2,7 @@ package nextcloud
 
 import (
 	"github.com/RacoonMediaServer/rms-notes/internal/config"
+	"github.com/RacoonMediaServer/rms-notes/internal/vault"
 	"github.com/studio-b12/gowebdav"
 	"go-micro.dev/v4/logger"
 	"os"
@@ -13,7 +14,7 @@ type Client struct {
 	l logger.Logger
 }
 
-func NewClient(config config.WebDAV) *Client {
+func NewClient(config config.WebDAV) vault.Accessor {
 	root := gowebdav.Join(config.Root, "files/"+config.User)
 	return &Client{
 		c: gowebdav.NewClient(root, config.User, config.Password),
@@ -21,7 +22,7 @@ func NewClient(config config.WebDAV) *Client {
 	}
 }
 
-func (c *Client) Download(path string) ([]byte, error) {
+func (c *Client) Read(path string) ([]byte, error) {
 	return c.c.Read(path)
 }
 
@@ -29,7 +30,7 @@ func (c *Client) List(path string) ([]os.FileInfo, error) {
 	return c.c.ReadDir(path)
 }
 
-func (c *Client) Upload(path string, content []byte) error {
+func (c *Client) Write(path string, content []byte) error {
 	return c.c.Write(path, content, 0644)
 }
 

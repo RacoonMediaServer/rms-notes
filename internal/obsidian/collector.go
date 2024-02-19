@@ -35,7 +35,7 @@ func (m *Manager) collectTasks() error {
 	var tasks []*Task
 	mapTaskToFile := make(map[string]string)
 
-	err := m.nc.Walk(m.baseDir, func(path string, info fs.FileInfo, err error) error {
+	err := m.vault.Walk(m.baseDir, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -75,7 +75,7 @@ func (m *Manager) collectTasks() error {
 func (m *Manager) extractTasks(fileName string, selector taskSelector) ([]*Task, error) {
 	m.l.Logf(logger.DebugLevel, "Extracting from %s...", fileName)
 	var tasks []*Task
-	data, err := m.nc.Download(fileName)
+	data, err := m.vault.Read(fileName)
 	if err != nil {
 		return nil, err
 	}

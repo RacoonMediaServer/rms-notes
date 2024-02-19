@@ -4,8 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/RacoonMediaServer/rms-notes/internal/config"
-	"github.com/RacoonMediaServer/rms-notes/internal/nextcloud"
+	"github.com/RacoonMediaServer/rms-notes/internal/vault"
 	rms_bot_client "github.com/RacoonMediaServer/rms-packages/pkg/service/rms-bot-client"
 	rms_notes "github.com/RacoonMediaServer/rms-packages/pkg/service/rms-notes"
 	"github.com/go-co-op/gocron"
@@ -26,8 +25,8 @@ type Manager struct {
 	baseDir   string
 	notesDir  string
 	tasksFile string
-	nc        *nextcloud.Client
-	w         *nextcloud.Watcher
+	vault     vault.Accessor
+	w         vault.Watcher
 
 	pub micro.Event
 	bot rms_bot_client.RmsBotClientService
@@ -46,13 +45,13 @@ type Manager struct {
 	mapTaskToFile map[string]string
 }
 
-func New(settings *rms_notes.NotesSettings, pub micro.Event, bot rms_bot_client.RmsBotClientService) *Manager {
+func New(settings *rms_notes.NotesSettings, pub micro.Event, bot rms_bot_client.RmsBotClientService, vault vault.Accessor) *Manager {
 	m := Manager{
 		l:          logger.Fields(map[string]interface{}{"from": "obsidian"}),
 		baseDir:    settings.Directory,
 		notesDir:   path.Join(settings.Directory, settings.NotesDirectory),
 		tasksFile:  path.Join(settings.Directory, settings.TasksFile),
-		nc:         nextcloud.NewClient(config.Config().WebDAV),
+		vault:      vault,
 		pub:        pub,
 		check:      make(chan struct{}),
 		sched:      gocron.NewScheduler(time.Local),
@@ -61,7 +60,7 @@ func New(settings *rms_notes.NotesSettings, pub micro.Event, bot rms_bot_client.
 	}
 
 	m.ctx, m.cancel = context.WithCancel(context.Background())
-	m.w = m.nc.AddWatcher(m.baseDir)
+	m.w = m.vault.Watch(m.baseDir)
 
 	m.wg.Add(1)
 	go func() {
@@ -79,11 +78,11 @@ func New(settings *rms_notes.NotesSettings, pub micro.Event, bot rms_bot_client.
 
 func (m *Manager) NewNote(title, content string) error {
 	fileName := path.Join(m.notesDir, escapeFileName(title)+".md")
-	return m.nc.Upload(fileName, []byte(content))
+	return m.vault.Write(fileName, []byte(content))
 }
 
 func (m *Manager) AddTask(t Task) error {
-	tasksFileContent, err := m.nc.Download(m.tasksFile)
+	tasksFileContent, err := m.vault.Read(m.tasksFile)
 	if err != nil {
 		if !errors.Is(err, gowebdav.StatusError{Status: 404}) {
 			return err
@@ -91,7 +90,7 @@ func (m *Manager) AddTask(t Task) error {
 	}
 
 	content := string(tasksFileContent) + "\n" + t.String()
-	return m.nc.Upload(m.tasksFile, []byte(content))
+	return m.vault.Write(m.tasksFile, []byte(content))
 }
 
 func (m *Manager) Done(id string) error {

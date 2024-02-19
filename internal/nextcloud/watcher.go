@@ -2,6 +2,7 @@ package nextcloud
 
 import (
 	"context"
+	"github.com/RacoonMediaServer/rms-notes/internal/vault"
 	"github.com/studio-b12/gowebdav"
 	"go-micro.dev/v4/logger"
 	"sync"
@@ -21,7 +22,7 @@ type Watcher struct {
 	l       logger.Logger
 }
 
-func (c *Client) AddWatcher(path string) *Watcher {
+func (c *Client) Watch(path string) vault.Watcher {
 	w := &Watcher{
 		c:    c.c,
 		path: path,

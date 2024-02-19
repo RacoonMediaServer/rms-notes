@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/RacoonMediaServer/rms-notes/internal/config"
+	"github.com/RacoonMediaServer/rms-notes/internal/nextcloud"
 	"github.com/RacoonMediaServer/rms-notes/internal/obsidian"
 	"github.com/RacoonMediaServer/rms-packages/pkg/pubsub"
 	rms_bot_client "github.com/RacoonMediaServer/rms-packages/pkg/service/rms-bot-client"
@@ -98,7 +100,7 @@ func (n *Notes) SetSettings(ctx context.Context, settings *rms_notes.NotesSettin
 	}
 
 	n.o.Stop()
-	n.o = obsidian.New(settings, n.pub, n.bot)
+	n.o = obsidian.New(settings, n.pub, n.bot, nextcloud.NewClient(config.Config().WebDAV))
 
 	return nil
 }
@@ -115,7 +117,7 @@ func New(db Database, s servicemgr.ClientFactory) (*Notes, error) {
 
 	return &Notes{
 		db:  db,
-		o:   obsidian.New(settings, pub, bot),
+		o:   obsidian.New(settings, pub, bot, nextcloud.NewClient(config.Config().WebDAV)),
 		pub: pub,
 		bot: bot,
 	}, nil
