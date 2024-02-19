@@ -8,10 +8,5 @@
   },
   "debug": {
     "verbose": false
-  },
-  "webdav": {
-    "root": "http://nc.rms.local/remote.php/dav",
-    "user": "admin",
-    "password": ""
   }
 }

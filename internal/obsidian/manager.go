@@ -20,13 +20,14 @@ const (
 	DateFormat = "2006-01-02"
 )
 
-type Manager struct {
+type Vault struct {
 	l         logger.Logger
 	baseDir   string
 	notesDir  string
 	tasksFile string
 	vault     vault.Accessor
 	w         vault.Watcher
+	user      int32
 
 	pub micro.Event
 	bot rms_bot_client.RmsBotClientService
@@ -45,8 +46,8 @@ type Manager struct {
 	mapTaskToFile map[string]string
 }
 
-func New(settings *rms_notes.NotesSettings, pub micro.Event, bot rms_bot_client.RmsBotClientService, vault vault.Accessor) *Manager {
-	m := Manager{
+func New(settings *rms_notes.NotesSettings, pub micro.Event, bot rms_bot_client.RmsBotClientService, vault vault.Accessor, telegramUser int32) *Vault {
+	m := Vault{
 		l:          logger.Fields(map[string]interface{}{"from": "obsidian"}),
 		baseDir:    settings.Directory,
 		notesDir:   path.Join(settings.Directory, settings.NotesDirectory),
@@ -57,6 +58,7 @@ func New(settings *rms_notes.NotesSettings, pub micro.Event, bot rms_bot_client.
 		sched:      gocron.NewScheduler(time.Local),
 		notifyTime: fmt.Sprintf("%02d:00", settings.NotificationTime),
 		bot:        bot,
+		user:       telegramUser,
 	}
 
 	m.ctx, m.cancel = context.WithCancel(context.Background())
@@ -76,12 +78,12 @@ func New(settings *rms_notes.NotesSettings, pub micro.Event, bot rms_bot_client.
 	return &m
 }
 
-func (m *Manager) NewNote(title, content string) error {
+func (m *Vault) NewNote(title, content string) error {
 	fileName := path.Join(m.notesDir, escapeFileName(title)+".md")
 	return m.vault.Write(fileName, []byte(content))
 }
 
-func (m *Manager) AddTask(t Task) error {
+func (m *Vault) AddTask(t Task) error {
 	tasksFileContent, err := m.vault.Read(m.tasksFile)
 	if err != nil {
 		if !errors.Is(err, gowebdav.StatusError{Status: 404}) {
@@ -93,7 +95,7 @@ func (m *Manager) AddTask(t Task) error {
 	return m.vault.Write(m.tasksFile, []byte(content))
 }
 
-func (m *Manager) Done(id string) error {
+func (m *Vault) Done(id string) error {
 	m.mu.RLock()
 	file, ok := m.mapTaskToFile[id]
 	if !ok {
@@ -132,7 +134,7 @@ func (m *Manager) Done(id string) error {
 	return m.saveFile(file, lines)
 }
 
-func (m *Manager) Snooze(id string, date time.Time) error {
+func (m *Vault) Snooze(id string, date time.Time) error {
 	m.mu.RLock()
 	file, ok := m.mapTaskToFile[id]
 	if !ok {
@@ -157,7 +159,7 @@ func (m *Manager) Snooze(id string, date time.Time) error {
 	return m.saveFile(file, lines)
 }
 
-func (m *Manager) Stop() {
+func (m *Vault) Stop() {
 	m.sched.Stop()
 	m.w.Stop()
 	m.cancel()

@@ -1,7 +1,6 @@
 package nextcloud
 
 import (
-	"github.com/RacoonMediaServer/rms-notes/internal/config"
 	"github.com/RacoonMediaServer/rms-notes/internal/vault"
 	"github.com/studio-b12/gowebdav"
 	"go-micro.dev/v4/logger"
@@ -14,7 +13,13 @@ type Client struct {
 	l logger.Logger
 }
 
-func NewClient(config config.WebDAV) vault.Accessor {
+type WebDAV struct {
+	Root     string
+	User     string
+	Password string
+}
+
+func NewClient(config WebDAV) vault.Accessor {
 	root := gowebdav.Join(config.Root, "files/"+config.User)
 	return &Client{
 		c: gowebdav.NewClient(root, config.User, config.Password),

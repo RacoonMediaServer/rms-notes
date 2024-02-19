@@ -28,7 +28,7 @@ func filterEntry(root string, fi os.FileInfo) bool {
 	return false
 }
 
-func (m *Manager) collectTasks() error {
+func (m *Vault) collectTasks() error {
 	m.l.Log(logger.InfoLevel, "Extracting tasks...")
 	defer m.l.Log(logger.InfoLevel, "Extracting DONE")
 
@@ -72,7 +72,7 @@ func (m *Manager) collectTasks() error {
 	return nil
 }
 
-func (m *Manager) extractTasks(fileName string, selector taskSelector) ([]*Task, error) {
+func (m *Vault) extractTasks(fileName string, selector taskSelector) ([]*Task, error) {
 	m.l.Logf(logger.DebugLevel, "Extracting from %s...", fileName)
 	var tasks []*Task
 	data, err := m.vault.Read(fileName)

@@ -50,6 +50,8 @@ github.com/ProtonMail/go-crypto v0.0.0-20210428141323-04723f9f07d7 h1:YoJbenK9C6
 github.com/ProtonMail/go-crypto v0.0.0-20210428141323-04723f9f07d7/go.mod h1:z4/9nQmJSSwwds7ejkxaJwO37dru3geImFUdJlaLzQo=
 github.com/RacoonMediaServer/rms-packages v1.11.10 h1:yW7bmpMbzVUVzekJzakO7h7wY4l/NOle/q0n2E/jyDc=
 github.com/RacoonMediaServer/rms-packages v1.11.10/go.mod h1:RiGcnXZXAcnk2LCVTGI31gqfYPBUoiSxjX7L7024aB0=
+github.com/RacoonMediaServer/rms-packages v1.12.0 h1:frnf4xoNq9ML85ThGwTl6bSa+BjUEQZKUXw24r7+vtg=
+github.com/RacoonMediaServer/rms-packages v1.12.0/go.mod h1:RiGcnXZXAcnk2LCVTGI31gqfYPBUoiSxjX7L7024aB0=
 github.com/Shopify/sarama v1.19.0/go.mod h1:FVkBWblsNy7DGZRfXLU0O9RCGt5g3g3yEuWXgklEdEo=
 github.com/Shopify/toxiproxy v2.1.4+incompatible/go.mod h1:OXgGpZ6Cli1/URJOF1DMxUHB2q5Ap20/P/eIdh4G0pI=
 github.com/acomagu/bufpipe v1.0.3 h1:fxAGrHZTgQ9w5QqVItgzwj235/uYZYgbXitB+dLupOk=

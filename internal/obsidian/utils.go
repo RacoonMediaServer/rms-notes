@@ -11,7 +11,7 @@ func escapeFileName(fn string) string {
 	return rpl.Replace(fn)
 }
 
-func (m *Manager) loadFile(fileName string) ([]string, error) {
+func (m *Vault) loadFile(fileName string) ([]string, error) {
 	data, err := m.vault.Read(fileName)
 	if err != nil {
 		return nil, err
@@ -27,7 +27,7 @@ func (m *Manager) loadFile(fileName string) ([]string, error) {
 	return lines, scan.Err()
 }
 
-func (m *Manager) saveFile(fileName string, lines []string) error {
+func (m *Vault) saveFile(fileName string, lines []string) error {
 	var builder strings.Builder
 	for _, line := range lines {
 		builder.WriteString(line)

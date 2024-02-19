@@ -1,6 +1,7 @@
 package db
 
 import (
+	"github.com/RacoonMediaServer/rms-notes/internal/model"
 	"github.com/RacoonMediaServer/rms-packages/pkg/configuration"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -16,7 +17,7 @@ func Connect(dbConfig configuration.Database) (*Database, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = db.AutoMigrate(&notesSettings{}); err != nil {
+	if err = db.AutoMigrate(&notesSettings{}, &model.NotesUser{}); err != nil {
 		return nil, err
 	}
 	return &Database{conn: db}, nil

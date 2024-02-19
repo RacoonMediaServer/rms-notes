@@ -13,7 +13,7 @@ import (
 
 const notificationTimeout = 20 * time.Second
 
-func (m *Manager) observeFolder() {
+func (m *Vault) observeFolder() {
 	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done()
@@ -21,7 +21,7 @@ func (m *Manager) observeFolder() {
 	}()
 }
 
-func (m *Manager) processEvents() {
+func (m *Vault) processEvents() {
 	for {
 		select {
 		case <-m.ctx.Done():
@@ -41,7 +41,7 @@ func (m *Manager) processEvents() {
 	}
 }
 
-func (m *Manager) panicMalfunction(text string, err error) {
+func (m *Vault) panicMalfunction(text string, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), notificationTimeout)
 	defer cancel()
 
@@ -63,7 +63,7 @@ func (m *Manager) panicMalfunction(text string, err error) {
 	panic(message)
 }
 
-func (m *Manager) checkScheduledTasks() {
+func (m *Vault) checkScheduledTasks() {
 	logger.Infof("Check scheduled tasks")
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -92,7 +92,7 @@ func (m *Manager) checkScheduledTasks() {
 				},
 				KeyboardStyle: communication.KeyboardStyle_Message,
 				Attachment:    nil,
-				User:          0,
+				User:          m.user,
 			}})
 
 			if err != nil {
