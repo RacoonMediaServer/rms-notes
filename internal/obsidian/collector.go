@@ -33,7 +33,8 @@ func (m *Vault) collectTasks() error {
 	defer m.l.Log(logger.InfoLevel, "Extracting DONE")
 
 	var tasks []*Task
-	mapTaskToFile := make(map[string]string)
+	mapTaskIdToFile := make(map[string]string)
+	mapTaskIdToTask := make(map[string]*Task)
 
 	err := m.vault.Walk(m.baseDir, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
@@ -54,7 +55,8 @@ func (m *Vault) collectTasks() error {
 			m.l.Logf(logger.WarnLevel, "Extract tasks from '%s' failed: %s", path, err)
 		}
 		for _, t := range fileTasks {
-			mapTaskToFile[t.Hash()] = path
+			mapTaskIdToFile[t.Hash()] = path
+			mapTaskIdToTask[t.Hash()] = t
 		}
 		tasks = append(tasks, fileTasks...)
 		return nil
@@ -66,7 +68,8 @@ func (m *Vault) collectTasks() error {
 
 	m.mu.Lock()
 	m.tasks = tasks
-	m.mapTaskToFile = mapTaskToFile
+	m.mapTaskIdToFile = mapTaskIdToFile
+	m.mapTaskIdToTask = mapTaskIdToTask
 	m.mu.Unlock()
 
 	return nil

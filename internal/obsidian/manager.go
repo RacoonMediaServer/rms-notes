@@ -41,24 +41,27 @@ type Vault struct {
 	notifyTime string
 	initiated  bool
 
-	mu            sync.RWMutex
-	tasks         []*Task
-	mapTaskToFile map[string]string
+	mu              sync.RWMutex
+	tasks           []*Task
+	mapTaskIdToFile map[string]string
+	mapTaskIdToTask map[string]*Task
 }
 
 func New(settings *rms_notes.NotesSettings, pub micro.Event, bot rms_bot_client.RmsBotClientService, vault vault.Accessor, telegramUser int32) *Vault {
 	m := Vault{
-		l:          logger.Fields(map[string]interface{}{"from": "obsidian"}),
-		baseDir:    settings.Directory,
-		notesDir:   path.Join(settings.Directory, settings.NotesDirectory),
-		tasksFile:  path.Join(settings.Directory, settings.TasksFile),
-		vault:      vault,
-		pub:        pub,
-		check:      make(chan struct{}),
-		sched:      gocron.NewScheduler(time.Local),
-		notifyTime: fmt.Sprintf("%02d:00", settings.NotificationTime),
-		bot:        bot,
-		user:       telegramUser,
+		l:               logger.Fields(map[string]interface{}{"from": "obsidian"}),
+		baseDir:         settings.Directory,
+		notesDir:        path.Join(settings.Directory, settings.NotesDirectory),
+		tasksFile:       path.Join(settings.Directory, settings.TasksFile),
+		vault:           vault,
+		pub:             pub,
+		check:           make(chan struct{}),
+		sched:           gocron.NewScheduler(time.Local),
+		notifyTime:      fmt.Sprintf("%02d:00", settings.NotificationTime),
+		bot:             bot,
+		user:            telegramUser,
+		mapTaskIdToFile: map[string]string{},
+		mapTaskIdToTask: map[string]*Task{},
 	}
 
 	m.ctx, m.cancel = context.WithCancel(context.Background())
@@ -97,11 +100,12 @@ func (m *Vault) AddTask(t Task) error {
 
 func (m *Vault) Done(id string) error {
 	m.mu.RLock()
-	file, ok := m.mapTaskToFile[id]
+	file, ok := m.mapTaskIdToFile[id]
 	if !ok {
 		m.mu.RUnlock()
 		return fmt.Errorf("task not found: %s", id)
 	}
+	task := m.mapTaskIdToTask[id]
 	m.mu.RUnlock()
 
 	lines, err := m.loadFile(file)
@@ -131,16 +135,27 @@ func (m *Vault) Done(id string) error {
 		}
 	}
 
-	return m.saveFile(file, lines)
+	if err = m.saveFile(file, lines); err != nil {
+		return err
+	}
+
+	if task != nil {
+		m.mu.Lock()
+		task.Done = true
+		m.mu.Unlock()
+	}
+
+	return nil
 }
 
 func (m *Vault) Snooze(id string, date time.Time) error {
 	m.mu.RLock()
-	file, ok := m.mapTaskToFile[id]
+	file, ok := m.mapTaskIdToFile[id]
 	if !ok {
 		m.mu.RUnlock()
 		return fmt.Errorf("task not found: %s", id)
 	}
+	task := m.mapTaskIdToTask[id]
 	m.mu.RUnlock()
 
 	lines, err := m.loadFile(file)
@@ -156,7 +171,17 @@ func (m *Vault) Snooze(id string, date time.Time) error {
 		}
 	}
 
-	return m.saveFile(file, lines)
+	if err = m.saveFile(file, lines); err != nil {
+		return err
+	}
+
+	if task != nil {
+		m.mu.Lock()
+		task.DueDate = &date
+		m.mu.Unlock()
+	}
+
+	return nil
 }
 
 func (m *Vault) Stop() {
