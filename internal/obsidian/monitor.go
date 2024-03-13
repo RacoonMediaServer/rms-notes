@@ -33,10 +33,10 @@ func (m *Vault) processEvents() {
 			}
 			if !m.initiated {
 				m.initiated = true
-				m.checkScheduledTasks()
+				m.SendExpiredTasksNotification()
 			}
 		case <-m.check:
-			m.checkScheduledTasks()
+			m.SendExpiredTasksNotification()
 		}
 	}
 }
@@ -63,7 +63,7 @@ func (m *Vault) panicMalfunction(text string, err error) {
 	panic(message)
 }
 
-func (m *Vault) checkScheduledTasks() {
+func (m *Vault) SendExpiredTasksNotification() {
 	logger.Infof("Check scheduled tasks")
 	m.mu.RLock()
 	defer m.mu.RUnlock()

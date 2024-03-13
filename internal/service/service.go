@@ -145,6 +145,19 @@ func (n *Notes) DoneTask(ctx context.Context, request *rms_notes.DoneTaskRequest
 	return nil
 }
 
+func (n *Notes) SendTasksNotification(ctx context.Context, request *rms_notes.SendTasksNotificationRequest, empty *emptypb.Empty) error {
+	n.mu.RLock()
+	o, ok := n.vaults[request.User]
+	n.mu.RUnlock()
+
+	if !ok {
+		return errors.New("user must login")
+	}
+
+	o.SendExpiredTasksNotification()
+	return nil
+}
+
 func (n *Notes) GetSettings(ctx context.Context, empty *emptypb.Empty, settings *rms_notes.NotesSettings) error {
 	loaded, err := n.db.LoadSettings()
 	if err != nil {
