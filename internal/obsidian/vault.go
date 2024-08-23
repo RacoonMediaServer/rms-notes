@@ -27,6 +27,7 @@ type Vault struct {
 	baseDir string
 	ctx     context.Context
 	sel     atomic.Uint32
+	pipeCh  chan deferFn
 
 	mu            sync.RWMutex
 	notes         map[string]*note
@@ -34,14 +35,17 @@ type Vault struct {
 }
 
 func NewVault(ctx context.Context, directory string, accessor vault.Accessor) *Vault {
-	return &Vault{
+	v := &Vault{
 		l:             logger.Fields(map[string]interface{}{"from": "obsidian"}),
 		vault:         accessor,
 		baseDir:       directory,
 		ctx:           ctx,
 		notes:         map[string]*note{},
 		mapTaskToNote: map[string]string{},
+		pipeCh:        make(chan deferFn, pipelineMaxJobs),
 	}
+	go v.processPipeline()
+	return v
 }
 
 func (v *Vault) GetTasks() []*Task {
@@ -57,20 +61,26 @@ func (v *Vault) GetTasks() []*Task {
 
 func (v *Vault) AddNote(directory, title, content string) error {
 	fileName := pathpkg.Join(v.baseDir, directory, escapeFileName(title)+".md")
-	return v.vault.Write(fileName, []byte(content))
+	v.pipeCh <- func() error {
+		return v.vault.Write(fileName, []byte(content))
+	}
+	return nil
 }
 
 func (v *Vault) AddTask(file string, t *Task) error {
 	path := pathpkg.Join(v.baseDir, file)
-	tasksFileContent, err := v.vault.Read(path)
-	if err != nil {
-		if !errors.Is(err, gowebdav.StatusError{Status: 404}) {
-			return err
+	v.pipeCh <- func() error {
+		tasksFileContent, err := v.vault.Read(path)
+		if err != nil {
+			if !errors.Is(err, gowebdav.StatusError{Status: 404}) {
+				return err
+			}
 		}
-	}
 
-	content := string(tasksFileContent) + "\n" + t.String()
-	return v.vault.Write(path, []byte(content))
+		content := string(tasksFileContent) + "\n" + t.String()
+		return v.vault.Write(path, []byte(content))
+	}
+	return nil
 }
 
 func (v *Vault) SnoozeTask(id string, date time.Time) error {
@@ -82,20 +92,23 @@ func (v *Vault) SnoozeTask(id string, date time.Time) error {
 	}
 	v.mu.RUnlock()
 
-	lines, err := v.loadNote(note)
-	if err != nil {
-		return err
-	}
-
-	for i, l := range lines {
-		if t := ParseTask(l); t != nil && t.Hash() == id {
-			t.DueDate = &date
-			lines[i] = t.String()
-			break
+	v.pipeCh <- func() error {
+		lines, err := v.loadNote(note)
+		if err != nil {
+			return err
 		}
-	}
 
-	return v.saveNote(note, lines)
+		for i, l := range lines {
+			if t := ParseTask(l); t != nil && t.Hash() == id {
+				t.DueDate = &date
+				lines[i] = t.String()
+				break
+			}
+		}
+
+		return v.saveNote(note, lines)
+	}
+	return nil
 }
 
 func (v *Vault) RemoveTask(id string) error {
@@ -107,24 +120,28 @@ func (v *Vault) RemoveTask(id string) error {
 	}
 	v.mu.RUnlock()
 
-	lines, err := v.loadNote(note)
-	if err != nil {
-		return err
-	}
-
-	idx := -1
-	for i, l := range lines {
-		if t := ParseTask(l); t != nil && t.Hash() == id {
-			idx = i
-			break
+	v.pipeCh <- func() error {
+		lines, err := v.loadNote(note)
+		if err != nil {
+			return err
 		}
-	}
-	if idx < 0 {
-		return fmt.Errorf("cannot remove task: %s", id)
-	}
-	lines = append(lines[:idx], lines[idx+1:]...)
 
-	return v.saveNote(note, lines)
+		idx := -1
+		for i, l := range lines {
+			if t := ParseTask(l); t != nil && t.Hash() == id {
+				idx = i
+				break
+			}
+		}
+		if idx < 0 {
+			return fmt.Errorf("cannot remove task: %s", id)
+		}
+		lines = append(lines[:idx], lines[idx+1:]...)
+
+		return v.saveNote(note, lines)
+	}
+
+	return nil
 }
 
 func (v *Vault) DoneTask(id string) error {
@@ -136,34 +153,37 @@ func (v *Vault) DoneTask(id string) error {
 	}
 	v.mu.RUnlock()
 
-	lines, err := v.loadNote(note)
-	if err != nil {
-		return err
-	}
-
-	now := time.Now()
-
-	for i, l := range lines {
-		if t := ParseTask(l); t != nil && t.Hash() == id {
-			t.Done = true
-			t.DoneDate = &now
-			lines[i] = t.String()
-			if t.Recurrent != RepetitionNo {
-				newLines := make([]string, 0, len(lines)+1)
-				next := t.NextDate()
-				t.Done = false
-				t.DoneDate = nil
-				t.DueDate = &next
-				newLines = append(newLines, lines[:i]...)
-				newLines = append(newLines, t.String())
-				newLines = append(newLines, lines[i:]...)
-				lines = newLines
-			}
-			break
+	v.pipeCh <- func() error {
+		lines, err := v.loadNote(note)
+		if err != nil {
+			return err
 		}
+
+		now := time.Now()
+		for i, l := range lines {
+			if t := ParseTask(l); t != nil && t.Hash() == id {
+				t.Done = true
+				t.DoneDate = &now
+				lines[i] = t.String()
+				if t.Recurrent != RepetitionNo {
+					newLines := make([]string, 0, len(lines)+1)
+					next := t.NextDate()
+					t.Done = false
+					t.DoneDate = nil
+					t.DueDate = &next
+					newLines = append(newLines, lines[:i]...)
+					newLines = append(newLines, t.String())
+					newLines = append(newLines, lines[i:]...)
+					lines = newLines
+				}
+				break
+			}
+		}
+
+		return v.saveNote(note, lines)
 	}
 
-	return v.saveNote(note, lines)
+	return nil
 }
 
 func (v *Vault) Refresh(selector TaskSelector) error {
