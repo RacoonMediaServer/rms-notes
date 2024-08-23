@@ -284,6 +284,7 @@ func (n *Notes) createVault(user *model.NotesUser, directory string) *obsidian.V
 				if err := vault.Refresh(obsidian.Scheduled); err == nil {
 					logger.Infof("Tasks for vault %s loaded", vaultId)
 					vault.StartWatchingChanges()
+					n.notifyAboutScheduledTasks(user.TelegramUser, vault.GetTasks())
 					return
 				} else {
 					logger.Errorf("Refresh obsidian vault %s failed: %s", vaultId, err)
