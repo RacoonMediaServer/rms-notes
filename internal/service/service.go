@@ -271,7 +271,11 @@ func (n *Notes) createVault(user *model.NotesUser, directory string) *obsidian.V
 		Password: user.Password,
 	}
 
-	vault := obsidian.NewVault(n.ctx, directory, nextcloud.NewClient(webDav))
+	errHandler := func(err error) {
+		n.notifyAboutError(user.TelegramUser, err)
+	}
+
+	vault := obsidian.NewVault(n.ctx, directory, nextcloud.NewClient(webDav), errHandler)
 	vaultId := fmt.Sprintf("[%s / %d]", user.Login, user.TelegramUser)
 
 	go func() {

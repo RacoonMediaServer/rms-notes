@@ -38,7 +38,7 @@ func main() {
 		*dir = filepath.Join(*addr, *dir)
 	}
 
-	cli := obsidian.NewVault(context.Background(), *dir, conn)
+	cli := obsidian.NewVault(context.Background(), *dir, conn, nil)
 	if err := cli.Refresh(obsidian.Scheduled); err != nil {
 		panic(err)
 	}

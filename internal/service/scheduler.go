@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -71,6 +72,29 @@ func (n *Notes) notifyAboutScheduledTasks(user int32, tasks []*obsidian.Task) {
 			if err != nil {
 				logger.Errorf("Send notification failed: %s", err)
 			}
+		}
+	}
+}
+
+func (n *Notes) notifyAboutError(user int32, err error) {
+	var obsidianErr *obsidian.Error
+	if errors.As(err, &obsidianErr) {
+		msg := ""
+		switch obsidianErr.Kind {
+		case obsidian.ErrAddNoteFailed:
+			msg = fmt.Sprintf("Не удалось добавить заметку '%s'", obsidianErr.Item)
+		case obsidian.ErrAddTaskFailed:
+			msg = fmt.Sprintf("Не удалось добавить задачу '%s'", obsidianErr.Item)
+		case obsidian.ErrSnoozeTaskFailed:
+			msg = fmt.Sprintf("Не удалось перенести задачу '%s'", obsidianErr.Item)
+		case obsidian.ErrRemoveTaskFailed:
+			msg = fmt.Sprintf("Не удалось удалить задачу '%s'", obsidianErr.Item)
+		case obsidian.ErrDoneTaskFailed:
+			msg = fmt.Sprintf("Не удалось завершить задачу '%s'", obsidianErr.Item)
+		}
+		_, err := n.bot.SendMessage(context.Background(), &rms_bot_client.SendMessageRequest{Message: &communication.BotMessage{Text: msg, User: user}})
+		if err != nil {
+			logger.Errorf("Send notification failed: %s", err)
 		}
 	}
 }

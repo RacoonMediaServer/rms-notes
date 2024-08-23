@@ -22,19 +22,20 @@ type note struct {
 }
 
 type Vault struct {
-	l       logger.Logger
-	vault   vault.Accessor
-	baseDir string
-	ctx     context.Context
-	sel     atomic.Uint32
-	pipeCh  chan deferFn
+	l          logger.Logger
+	vault      vault.Accessor
+	baseDir    string
+	ctx        context.Context
+	sel        atomic.Uint32
+	pipeCh     chan deferFn
+	errHandler DeferErrHandler
 
 	mu            sync.RWMutex
 	notes         map[string]*note
 	mapTaskToNote map[string]string
 }
 
-func NewVault(ctx context.Context, directory string, accessor vault.Accessor) *Vault {
+func NewVault(ctx context.Context, directory string, accessor vault.Accessor, fn DeferErrHandler) *Vault {
 	v := &Vault{
 		l:             logger.Fields(map[string]interface{}{"from": "obsidian"}),
 		vault:         accessor,
@@ -43,6 +44,7 @@ func NewVault(ctx context.Context, directory string, accessor vault.Accessor) *V
 		notes:         map[string]*note{},
 		mapTaskToNote: map[string]string{},
 		pipeCh:        make(chan deferFn, pipelineMaxJobs),
+		errHandler:    fn,
 	}
 	go v.processPipeline()
 	return v
@@ -61,15 +63,15 @@ func (v *Vault) GetTasks() []*Task {
 
 func (v *Vault) AddNote(directory, title, content string) error {
 	fileName := pathpkg.Join(v.baseDir, directory, escapeFileName(title)+".md")
-	v.pipeCh <- func() error {
+	v.pipeCh <- wrapDeferFn(ErrAddNoteFailed, func() error {
 		return v.vault.Write(fileName, []byte(content))
-	}
+	}, title)
 	return nil
 }
 
 func (v *Vault) AddTask(file string, t *Task) error {
 	path := pathpkg.Join(v.baseDir, file)
-	v.pipeCh <- func() error {
+	v.pipeCh <- wrapDeferFn(ErrAddTaskFailed, func() error {
 		tasksFileContent, err := v.vault.Read(path)
 		if err != nil {
 			if !errors.Is(err, gowebdav.StatusError{Status: 404}) {
@@ -79,7 +81,7 @@ func (v *Vault) AddTask(file string, t *Task) error {
 
 		content := string(tasksFileContent) + "\n" + t.String()
 		return v.vault.Write(path, []byte(content))
-	}
+	}, t.Text)
 	return nil
 }
 
@@ -92,7 +94,7 @@ func (v *Vault) SnoozeTask(id string, date time.Time) error {
 	}
 	v.mu.RUnlock()
 
-	v.pipeCh <- func() error {
+	v.pipeCh <- wrapDeferFn(ErrSnoozeTaskFailed, func() error {
 		lines, err := v.loadNote(note)
 		if err != nil {
 			return err
@@ -107,7 +109,7 @@ func (v *Vault) SnoozeTask(id string, date time.Time) error {
 		}
 
 		return v.saveNote(note, lines)
-	}
+	}, pathpkg.Base(note))
 	return nil
 }
 
@@ -120,7 +122,7 @@ func (v *Vault) RemoveTask(id string) error {
 	}
 	v.mu.RUnlock()
 
-	v.pipeCh <- func() error {
+	v.pipeCh <- wrapDeferFn(ErrRemoveTaskFailed, func() error {
 		lines, err := v.loadNote(note)
 		if err != nil {
 			return err
@@ -139,7 +141,7 @@ func (v *Vault) RemoveTask(id string) error {
 		lines = append(lines[:idx], lines[idx+1:]...)
 
 		return v.saveNote(note, lines)
-	}
+	}, pathpkg.Base(note))
 
 	return nil
 }
@@ -153,7 +155,7 @@ func (v *Vault) DoneTask(id string) error {
 	}
 	v.mu.RUnlock()
 
-	v.pipeCh <- func() error {
+	v.pipeCh <- wrapDeferFn(ErrDoneTaskFailed, func() error {
 		lines, err := v.loadNote(note)
 		if err != nil {
 			return err
@@ -181,7 +183,7 @@ func (v *Vault) DoneTask(id string) error {
 		}
 
 		return v.saveNote(note, lines)
-	}
+	}, pathpkg.Base(note))
 
 	return nil
 }
