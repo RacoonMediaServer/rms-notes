@@ -38,6 +38,38 @@ type Notes struct {
 	cancel   context.CancelFunc
 }
 
+// RemoveTask implements rms_notes.RmsNotesHandler.
+func (n *Notes) RemoveTask(ctx context.Context, request *rms_notes.RemoveTaskRequest, response *emptypb.Empty) error {
+	n.mu.RLock()
+	o, ok := n.vaults[request.User]
+	n.mu.RUnlock()
+
+	if !ok {
+		return errors.New("user must login")
+	}
+
+	if err := o.RemoveTask(request.Id); err != nil {
+		logger.Errorf("Remove task %s failed: %s", request.Id, err)
+		return err
+	}
+
+	return nil
+}
+
+// SendTasksNotification implements rms_notes.RmsNotesHandler.
+func (n *Notes) SendTasksNotification(ctx context.Context, request *rms_notes.SendTasksNotificationRequest, response *emptypb.Empty) error {
+	n.mu.RLock()
+	o, ok := n.vaults[request.User]
+	n.mu.RUnlock()
+
+	if !ok {
+		return errors.New("user must login")
+	}
+
+	n.notifyAboutScheduledTasks(request.User, o.GetTasks())
+	return nil
+}
+
 func (n *Notes) IsUserLogged(ctx context.Context, request *rms_notes.IsUserLoggedRequest, response *rms_notes.IsUserLoggedResponse) error {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
