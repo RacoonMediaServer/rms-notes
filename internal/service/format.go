@@ -1,14 +1,18 @@
-package obsidian
+package service
 
-import "fmt"
+import (
+	"fmt"
 
-func formatTask(t *Task) string {
+	"github.com/RacoonMediaServer/rms-notes/internal/obsidian"
+)
+
+func formatTask(t *obsidian.Task) string {
 	result := "<b>Напоминание</b>\n\n"
 	result += fmt.Sprintf("<b>Задача:</b> %s\n", t.Text)
-	if t.Priority != PriorityNo {
+	if t.Priority != obsidian.PriorityNo {
 		result += fmt.Sprintf("<b>Приоритет:</b> %s\n", t.Priority)
 	}
-	if t.Recurrent != RepetitionNo {
+	if t.Recurrent != obsidian.RepetitionNo {
 		result += fmt.Sprintf("<b>Повторение:</b> %s\n", t.Recurrent)
 	}
 	return result

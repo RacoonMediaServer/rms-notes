@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
+	"time"
+
 	"github.com/RacoonMediaServer/rms-notes/internal/model"
 	"github.com/RacoonMediaServer/rms-notes/internal/nextcloud"
 	"github.com/RacoonMediaServer/rms-notes/internal/obsidian"
@@ -11,22 +14,28 @@ import (
 	rms_bot_client "github.com/RacoonMediaServer/rms-packages/pkg/service/rms-bot-client"
 	rms_notes "github.com/RacoonMediaServer/rms-packages/pkg/service/rms-notes"
 	"github.com/RacoonMediaServer/rms-packages/pkg/service/servicemgr"
+	"github.com/go-co-op/gocron"
 	"go-micro.dev/v4"
 	"go-micro.dev/v4/logger"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"sync"
-	"time"
 )
+
+const refreshRetryInterval = 60 * time.Second
 
 type Notes struct {
 	db  Database
 	pub micro.Event
 	bot rms_bot_client.RmsBotClientService
 
+	sched *gocron.Scheduler
+
 	mu       sync.RWMutex
 	settings *rms_notes.NotesSettings
 	users    map[int32]*model.NotesUser
 	vaults   map[int32]*obsidian.Vault
+	job      *gocron.Job
+	ctx      context.Context
+	cancel   context.CancelFunc
 }
 
 func (n *Notes) IsUserLogged(ctx context.Context, request *rms_notes.IsUserLoggedRequest, response *rms_notes.IsUserLoggedResponse) error {
@@ -44,7 +53,6 @@ func (n *Notes) UserLogin(ctx context.Context, request *rms_notes.UserLoginReque
 		Login:        request.Login,
 		Password:     request.Password,
 	}
-	o := n.createVault(&user)
 
 	// TODO: check access
 	if err := n.db.AddUser(&user); err != nil {
@@ -54,7 +62,7 @@ func (n *Notes) UserLogin(ctx context.Context, request *rms_notes.UserLoginReque
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.users[request.User] = &user
-	n.vaults[request.User] = o
+	n.vaults[request.User] = n.createVault(&user, n.settings.Directory)
 
 	return nil
 }
@@ -62,13 +70,14 @@ func (n *Notes) UserLogin(ctx context.Context, request *rms_notes.UserLoginReque
 func (n *Notes) AddNote(ctx context.Context, request *rms_notes.AddNoteRequest, empty *emptypb.Empty) error {
 	n.mu.RLock()
 	o, ok := n.vaults[request.User]
+	notesDirectory := n.settings.NotesDirectory
 	n.mu.RUnlock()
 
 	if !ok {
 		return errors.New("user must login")
 	}
 
-	if err := o.NewNote(request.Title, request.Text); err != nil {
+	if err := o.AddNote(notesDirectory, request.Title, request.Text); err != nil {
 		logger.Errorf("Create a new note failed: %s", err)
 		return err
 	}
@@ -80,6 +89,7 @@ func (n *Notes) AddNote(ctx context.Context, request *rms_notes.AddNoteRequest, 
 func (n *Notes) AddTask(ctx context.Context, request *rms_notes.AddTaskRequest, empty *emptypb.Empty) error {
 	n.mu.RLock()
 	o, ok := n.vaults[request.User]
+	tasksFile := n.settings.TasksFile
 	n.mu.RUnlock()
 
 	if !ok {
@@ -96,7 +106,7 @@ func (n *Notes) AddTask(ctx context.Context, request *rms_notes.AddTaskRequest, 
 		}
 		t.DueDate = &date
 	}
-	if err := o.AddTask(t); err != nil {
+	if err := o.AddTask(tasksFile, &t); err != nil {
 		logger.Errorf("Add task failed: %s", err)
 		return err
 	}
@@ -120,7 +130,7 @@ func (n *Notes) SnoozeTask(ctx context.Context, request *rms_notes.SnoozeTaskReq
 			return fmt.Errorf("invalid date format: %s", err)
 		}
 	}
-	if err = o.Snooze(request.Id, date); err != nil {
+	if err = o.SnoozeTask(request.Id, date); err != nil {
 		logger.Errorf("Cannot snooze task %s to %s: %s", request.Id, date, err)
 		return err
 	}
@@ -137,7 +147,7 @@ func (n *Notes) DoneTask(ctx context.Context, request *rms_notes.DoneTaskRequest
 		return errors.New("user must login")
 	}
 
-	if err := o.Done(request.Id); err != nil {
+	if err := o.DoneTask(request.Id); err != nil {
 		logger.Errorf("Done task %s failed: %s", request.Id, err)
 		return err
 	}
@@ -181,17 +191,18 @@ func (n *Notes) SetSettings(ctx context.Context, settings *rms_notes.NotesSettin
 	}
 
 	n.mu.Lock()
-	defer n.mu.Unlock()
-
 	n.settings = settings
 
-	for _, o := range n.vaults {
-		o.Stop()
+	n.cancel()
+	n.ctx, n.cancel = context.WithCancel(context.Background())
+
+	n.vaults = make(map[int32]*obsidian.Vault)
+	for _, u := range n.users {
+		n.vaults[u.TelegramUser] = n.createVault(u, settings.Directory)
 	}
-	n.vaults = map[int32]*obsidian.Vault{}
-	for _, user := range n.users {
-		n.vaults[user.TelegramUser] = n.createVault(user)
-	}
+	n.mu.Unlock()
+
+	n.runScheduleEvents()
 
 	return nil
 }
@@ -211,6 +222,7 @@ func New(db Database, s servicemgr.ClientFactory) (*Notes, error) {
 	f := servicemgr.NewServiceFactory(s)
 	bot := f.NewBotClient()
 
+	ctx, cancel := context.WithCancel(context.Background())
 	n := &Notes{
 		db:       db,
 		pub:      pub,
@@ -218,21 +230,47 @@ func New(db Database, s servicemgr.ClientFactory) (*Notes, error) {
 		users:    users,
 		settings: settings,
 		vaults:   make(map[int32]*obsidian.Vault),
+		sched:    gocron.NewScheduler(time.Local),
+		ctx:      ctx,
+		cancel:   cancel,
 	}
 
 	for _, u := range users {
-		n.vaults[u.TelegramUser] = n.createVault(u)
+		n.vaults[u.TelegramUser] = n.createVault(u, settings.Directory)
 	}
+
+	n.runScheduleEvents()
+	n.sched.StartAsync()
 
 	return n, nil
 }
 
-func (n *Notes) createVault(user *model.NotesUser) *obsidian.Vault {
+func (n *Notes) createVault(user *model.NotesUser, directory string) *obsidian.Vault {
 	webDav := nextcloud.WebDAV{
 		Root:     user.Endpoint,
 		User:     user.Login,
 		Password: user.Password,
 	}
 
-	return obsidian.New(n.settings, n.pub, n.bot, nextcloud.NewClient(webDav), user.TelegramUser)
+	vault := obsidian.NewVault(n.ctx, directory, nextcloud.NewClient(webDav))
+	vaultId := fmt.Sprintf("[%s / %d]", user.Login, user.TelegramUser)
+
+	go func() {
+		for {
+			select {
+			case <-n.ctx.Done():
+				return
+			case <-time.After(refreshRetryInterval):
+				logger.Infof("Refreshing new vault %s...", vaultId)
+				if err := vault.Refresh(obsidian.Scheduled); err == nil {
+					logger.Infof("Tasks for vault %s loaded", vaultId)
+					vault.StartWatchingChanges()
+					return
+				} else {
+					logger.Errorf("Refresh obsidian vault %s failed: %s", vaultId, err)
+				}
+			}
+		}
+	}()
+	return vault
 }

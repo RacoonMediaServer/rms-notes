@@ -9,6 +9,10 @@ import (
 	"time"
 )
 
+const (
+	DateFormat = "2006-01-02"
+)
+
 var (
 	taskStart     = regexp.MustCompile(`^\s*(\*|-) \[(x| |X)\]\s*`)
 	dueDateRegex  = regexp.MustCompile(`📅 (\d\d\d\d-\d\d-\d\d)`)
