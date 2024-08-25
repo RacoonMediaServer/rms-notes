@@ -100,6 +100,10 @@ func (v *Vault) SnoozeTask(id string, date time.Time) error {
 		return fmt.Errorf("task not found: %s", id)
 	}
 	t.DueDate = &date
+	delete(v.tasks, id)
+	delete(v.mapTaskToNote, id)
+	v.tasks[t.Hash()] = t
+	v.mapTaskToNote[t.Hash()] = note
 	v.mu.Unlock()
 
 	v.pipeCh <- wrapDeferFn(ErrSnoozeTaskFailed, func() error {
