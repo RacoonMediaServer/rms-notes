@@ -27,6 +27,7 @@ func (v *Vault) removeNoteUnsafe(path string) {
 	}
 	for _, t := range note.tasks {
 		delete(v.mapTaskToNote, t.Hash())
+		delete(v.tasks, t.Hash())
 	}
 	delete(v.notes, path)
 }
@@ -34,6 +35,7 @@ func (v *Vault) removeNoteUnsafe(path string) {
 func (v *Vault) addNoteUnsafe(path string, modTime time.Time, tasks []*Task) {
 	for _, t := range tasks {
 		v.mapTaskToNote[t.Hash()] = path
+		v.tasks[t.Hash()] = t
 	}
 
 	n := note{modTime: modTime, tasks: tasks}

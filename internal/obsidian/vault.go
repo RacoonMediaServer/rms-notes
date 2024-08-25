@@ -33,6 +33,7 @@ type Vault struct {
 	mu            sync.RWMutex
 	notes         map[string]*note
 	mapTaskToNote map[string]string
+	tasks         map[string]*Task
 }
 
 func NewVault(ctx context.Context, directory string, accessor vault.Accessor, fn DeferErrHandler) *Vault {
@@ -43,6 +44,7 @@ func NewVault(ctx context.Context, directory string, accessor vault.Accessor, fn
 		ctx:           ctx,
 		notes:         map[string]*note{},
 		mapTaskToNote: map[string]string{},
+		tasks:         map[string]*Task{},
 		pipeCh:        make(chan deferFn, pipelineMaxJobs),
 		errHandler:    fn,
 	}
@@ -55,8 +57,9 @@ func (v *Vault) GetTasks() []*Task {
 	defer v.mu.RUnlock()
 
 	var tasks []*Task
-	for _, n := range v.notes {
-		tasks = append(tasks, n.tasks...)
+	for _, t := range v.tasks {
+		copy := *t
+		tasks = append(tasks, &copy)
 	}
 	return tasks
 }
@@ -86,13 +89,18 @@ func (v *Vault) AddTask(file string, t *Task) error {
 }
 
 func (v *Vault) SnoozeTask(id string, date time.Time) error {
-	v.mu.RLock()
+	v.mu.Lock()
+	var t *Task
 	note, ok := v.mapTaskToNote[id]
+	if ok {
+		t, ok = v.tasks[id]
+	}
 	if !ok {
-		v.mu.RUnlock()
+		v.mu.Unlock()
 		return fmt.Errorf("task not found: %s", id)
 	}
-	v.mu.RUnlock()
+	t.DueDate = &date
+	v.mu.Unlock()
 
 	v.pipeCh <- wrapDeferFn(ErrSnoozeTaskFailed, func() error {
 		lines, err := v.loadNote(note)
@@ -109,18 +117,24 @@ func (v *Vault) SnoozeTask(id string, date time.Time) error {
 		}
 
 		return v.saveNote(note, lines)
-	}, pathpkg.Base(note))
+	}, t.Text)
 	return nil
 }
 
 func (v *Vault) RemoveTask(id string) error {
-	v.mu.RLock()
+	v.mu.Lock()
+	var t *Task
 	note, ok := v.mapTaskToNote[id]
+	if ok {
+		t, ok = v.tasks[id]
+	}
 	if !ok {
-		v.mu.RUnlock()
+		v.mu.Unlock()
 		return fmt.Errorf("task not found: %s", id)
 	}
-	v.mu.RUnlock()
+	delete(v.mapTaskToNote, id)
+	delete(v.tasks, id)
+	v.mu.Unlock()
 
 	v.pipeCh <- wrapDeferFn(ErrRemoveTaskFailed, func() error {
 		lines, err := v.loadNote(note)
@@ -141,19 +155,25 @@ func (v *Vault) RemoveTask(id string) error {
 		lines = append(lines[:idx], lines[idx+1:]...)
 
 		return v.saveNote(note, lines)
-	}, pathpkg.Base(note))
+	}, t.Text)
 
 	return nil
 }
 
 func (v *Vault) DoneTask(id string) error {
-	v.mu.RLock()
+	v.mu.Lock()
+	var t *Task
 	note, ok := v.mapTaskToNote[id]
+	if ok {
+		t, ok = v.tasks[id]
+	}
 	if !ok {
-		v.mu.RUnlock()
+		v.mu.Unlock()
 		return fmt.Errorf("task not found: %s", id)
 	}
-	v.mu.RUnlock()
+	delete(v.mapTaskToNote, id)
+	delete(v.tasks, id)
+	v.mu.Unlock()
 
 	v.pipeCh <- wrapDeferFn(ErrDoneTaskFailed, func() error {
 		lines, err := v.loadNote(note)
@@ -183,7 +203,7 @@ func (v *Vault) DoneTask(id string) error {
 		}
 
 		return v.saveNote(note, lines)
-	}, pathpkg.Base(note))
+	}, t.Text)
 
 	return nil
 }
@@ -194,6 +214,7 @@ func (v *Vault) Refresh(selector TaskSelector) error {
 
 	mapTaskToNote := make(map[string]string)
 	notes := make(map[string]*note)
+	tasks := make(map[string]*Task)
 
 	sel := getTaskSelector(selector)
 
@@ -218,6 +239,7 @@ func (v *Vault) Refresh(selector TaskSelector) error {
 		}
 		for _, t := range fileTasks {
 			mapTaskToNote[t.Hash()] = path
+			tasks[t.Hash()] = t
 		}
 
 		n := note{modTime: info.ModTime(), tasks: fileTasks}
@@ -239,6 +261,7 @@ func (v *Vault) Refresh(selector TaskSelector) error {
 	v.mu.Lock()
 	v.mapTaskToNote = mapTaskToNote
 	v.notes = notes
+	v.tasks = tasks
 	v.sel.Store(uint32(selector))
 	v.mu.Unlock()
 
