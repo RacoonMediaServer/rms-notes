@@ -8,5 +8,6 @@
   },
   "debug": {
     "verbose": false
-  }
+  },
+  "async": false
 }

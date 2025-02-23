@@ -6,6 +6,7 @@ import "github.com/RacoonMediaServer/rms-packages/pkg/configuration"
 type Configuration struct {
 	Database configuration.Database
 	Debug    configuration.Debug
+	Async    bool
 }
 
 var config Configuration

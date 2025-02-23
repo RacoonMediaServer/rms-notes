@@ -23,10 +23,10 @@ import (
 const refreshRetryInterval = 60 * time.Second
 
 type Notes struct {
-	db  Database
-	pub micro.Event
-	bot rms_bot_client.RmsBotClientService
-
+	db    Database
+	pub   micro.Event
+	bot   rms_bot_client.RmsBotClientService
+	async bool
 	sched *gocron.Scheduler
 
 	mu       sync.RWMutex
@@ -226,7 +226,7 @@ func (n *Notes) SetSettings(ctx context.Context, settings *rms_notes.NotesSettin
 	return nil
 }
 
-func New(db Database, s servicemgr.ClientFactory) (*Notes, error) {
+func New(db Database, s servicemgr.ClientFactory, async bool) (*Notes, error) {
 	settings, err := db.LoadSettings()
 	if err != nil {
 		return nil, err
@@ -245,6 +245,7 @@ func New(db Database, s servicemgr.ClientFactory) (*Notes, error) {
 	n := &Notes{
 		db:       db,
 		pub:      pub,
+		async:    async,
 		bot:      bot,
 		users:    users,
 		settings: settings,
@@ -275,7 +276,7 @@ func (n *Notes) createVault(user *model.NotesUser, directory string) *obsidian.V
 		n.notifyAboutError(user.TelegramUser, err)
 	}
 
-	vault := obsidian.NewVault(n.ctx, directory, nextcloud.NewClient(webDav), errHandler)
+	vault := obsidian.NewVault(n.ctx, directory, nextcloud.NewClient(webDav), errHandler, n.async)
 	vaultId := fmt.Sprintf("[%s / %d]", user.Login, user.TelegramUser)
 
 	go func() {
